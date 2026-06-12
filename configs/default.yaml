@@ -1,0 +1,40 @@
+data:
+  ticker: "SPY"
+  lookback_days: 730
+  min_open_interest: 50
+  max_bid_ask_spread_pct: 0.20
+
+iv:
+  risk_free_rate: 0.045
+
+surface:
+  gp:
+    kernel: "RBF + Matern52 + WhiteKernel"
+    length_scale_bounds: [0.01, 10.0]
+    alpha: 1.0e-6
+  svi:
+    bounds:
+      a: [-1.0, 1.0]
+      b: [0.0, 2.0]
+      rho: [-0.999, 0.999]
+      m: [-1.0, 1.0]
+      sigma: [0.01, 2.0]
+
+bayes_opt:
+  svi_calibration:
+    n_calls: 60
+    acq_func: "EI"
+  threshold_search:
+    bounds: [0.1, 5.0]
+    n_calls: 40
+    acq_func: "EI"
+
+signal:
+  calendar_buffer_days: 3
+
+backtest:
+  walk_forward:
+    train_window_days: 252
+    test_window_days: 63
+  transaction_costs:
+    bid_ask_haircut: 0.5
