@@ -84,7 +84,7 @@ gp-vol-surface-alpha/
 ## Installation
 
 ```bash
-git clone https://github.com/<user>/gp-vol-surface-alpha.git
+git clone https://github.com/lorenzo-tinivella/gp-vol-surface-alpha.git
 cd gp-vol-surface-alpha
 pip install -e ".[dev]"
 ```
