@@ -78,7 +78,8 @@ flagged before fitting the GP.
   uninformative prices that would distort the GP fit.
 
 ### References
-- Dupire, B. (1994). *Pricing with a Smile.* Risk, 7(1), 18-20.
+- Breeden, D. T., & Litzenberger, R. H. (1978). *Prices of State-Contingent Claims
+  Implicit in Option Prices.* Journal of Business, 51(4), 621-651.
 - Fengler, M. R. (2009). *Arbitrage-Free Smoothing of the Implied Volatility Surface.*
   Quantitative Finance, 9(4), 417-428.
 
@@ -121,8 +122,6 @@ surface.
 `sklearn.gaussian_process`, `GPy`, `botorch` (PyTorch-based)
 
 ### References
-- Rasmussen, C. E., & Williams, C. K. I. (2006). *Gaussian Processes for Machine
-  Learning.* MIT Press.
 - Cont, R., & da Fonseca, J. (2002). *Dynamics of Implied Volatility Surfaces.*
   Quantitative Finance, 2(1), 45-60.
 - Cousin, A., Maatouk, H., & Rulliere, D. (2016). *Kriging of Financial Term-Structures.*
@@ -173,9 +172,10 @@ the GP.
 ### References
 - Gatheral, J., & Jacquier, A. (2014). *Arbitrage-Free SVI Volatility Surfaces.*
   Quantitative Finance, 14(1), 59-71.
-- Snoek, J., Larochelle, H., & Adams, R. P. (2012). *Practical Bayesian Optimization
-  of Machine Learning Algorithms.* NeurIPS, 25, 2951-2959.
 - Frazier, P. I. (2018). *A Tutorial on Bayesian Optimization.* arXiv:1807.02811.
+- Garouani, M., & Bouneffa, M. (2024). *Automated Machine Learning Hyperparameters
+  Tuning through Meta-Guided Bayesian Optimization.* Progress in Artificial
+  Intelligence.
 
 ---
 
@@ -297,7 +297,6 @@ the following out-of-sample period.
   Journal of Portfolio Management, 40(5), 94-107.
 - White, H. (2000). *A Reality Check for Data Snooping.*
   Econometrica, 68(5), 1097-1126.
-- Lopez de Prado, M. (2018). *Advances in Financial Machine Learning.* Wiley.
 
 ---
 
@@ -339,8 +338,8 @@ alone.
 ### References
 - Bakshi, G., & Kapadia, N. (2003). *Delta-Hedged Gains and the Negative Market
   Volatility Risk Premium.* Review of Financial Studies, 16(2), 527-566.
-- Carr, P., & Wu, L. (2009). *Variance Risk Premiums.*
-  Review of Financial Studies, 22(3), 1311-1341.
+- Han, C.-H., & Wang, K. (2026). *Variance Risk Premia under Volatility Models.*
+  Review of Quantitative Finance and Accounting.
 
 ---
 
@@ -402,7 +401,6 @@ arbitrage, cross-sectional consistency, and stability over time.
   *Journal of Political Economy*, 81(3), 637-654.
 - **Breeden, D. T., & Litzenberger, R. H.** (1978). Prices of State-Contingent Claims
   Implicit in Option Prices. *Journal of Business*, 51(4), 621-651.
-- **Dupire, B.** (1994). Pricing with a Smile. *Risk*, 7(1), 18-20.
 - **Fengler, M. R.** (2009). Arbitrage-Free Smoothing of the Implied Volatility Surface.
   *Quantitative Finance*, 9(4), 417-428.
 - **Gatheral, J., & Jacquier, A.** (2014). Arbitrage-Free SVI Volatility Surfaces.
@@ -411,23 +409,22 @@ arbitrage, cross-sectional consistency, and stability over time.
   *Quantitative Finance*, 2(1), 45-60.
 
 ### Variance Risk Premium and Demand Effects
-- **Carr, P., & Wu, L.** (2009). Variance Risk Premiums.
-  *Review of Financial Studies*, 22(3), 1311-1341.
+- **Han, C.-H., & Wang, K.** (2026). Variance Risk Premia under Volatility Models.
+  *Review of Quantitative Finance and Accounting*.
 - **Bakshi, G., & Kapadia, N.** (2003). Delta-Hedged Gains and the Negative Market
   Volatility Risk Premium. *Review of Financial Studies*, 16(2), 527-566.
 - **Garleanu, N., Pedersen, L. H., & Poteshman, A. M.** (2009). Demand-Based Option
   Pricing. *Review of Financial Studies*, 22(10), 4259-4299.
 
 ### Gaussian Processes and Non-Parametric Methods
-- **Rasmussen, C. E., & Williams, C. K. I.** (2006). *Gaussian Processes for Machine
-  Learning.* MIT Press.
 - **Cousin, A., Maatouk, H., & Rulliere, D.** (2016). Kriging of Financial
   Term-Structures. *European Journal of Operational Research*, 255(2), 631-648.
 
 ### Bayesian Optimization
-- **Snoek, J., Larochelle, H., & Adams, R. P.** (2012). Practical Bayesian Optimization
-  of Machine Learning Algorithms. *NeurIPS*, 25, 2951-2959.
 - **Frazier, P. I.** (2018). A Tutorial on Bayesian Optimization. *arXiv:1807.02811*.
+- **Garouani, M., & Bouneffa, M.** (2024). Automated Machine Learning Hyperparameters
+  Tuning through Meta-Guided Bayesian Optimization. *Progress in Artificial
+  Intelligence*.
 
 ### Backtesting and Data Snooping
 - **Bailey, D. H., & Lopez de Prado, M.** (2014). The Deflated Sharpe Ratio: Correcting
@@ -435,7 +432,6 @@ arbitrage, cross-sectional consistency, and stability over time.
   *Journal of Portfolio Management*, 40(5), 94-107.
 - **White, H.** (2000). A Reality Check for Data Snooping.
   *Econometrica*, 68(5), 1097-1126.
-- **Lopez de Prado, M.** (2018). *Advances in Financial Machine Learning.* Wiley.
 
 ---
 
