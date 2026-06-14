@@ -6,419 +6,437 @@
 
 ## Overview
 
-Il progetto cattura inefficienze sistematiche nella volatility surface delle opzioni equity
-usando un Gaussian Process come modello non-parametrico di riferimento e Bayesian Optimization
-per calibrazione e ottimizzazione della soglia di trading. L'alpha economico deriva dalla
-discrepanza tra la vol implicita di mercato e la stima GP — aggiustata per liquidità,
-consistenza e costi di transazione — in presenza di un documentato Variance Risk Premium.
+The project targets systematic inefficiencies in the equity options
+implied volatility surface using a Gaussian Process as a non-parametric
+reference model, and Bayesian Optimization for calibration and trading
+threshold selection. The economic alpha derives from the discrepancy
+between market implied volatility and the GP estimate — adjusted for
+liquidity, model consistency, and transaction costs — in the presence of
+a well-documented Variance Risk Premium.
 
 ---
 
-## Punto 1 — Raccolta Dati e Calcolo dell'Implied Volatility
+## Step 1 — Data Collection and Implied Volatility Calculation
 
-### Cosa facciamo
-Scarichiamo le options chain giornaliere (SPX o singolo titolo liquido) e invertiamo la
-formula di Black-Scholes per ottenere la Implied Volatility (IV) per ogni coppia
-(strike K, scadenza T). Puliamo i dati rimuovendo contratti con open interest basso e
-prezzi fuori dai bound bid-ask.
+### What we do
+We download daily options chains (SPX or a liquid single name) and invert
+the Black-Scholes formula to obtain the Implied Volatility (IV) for each
+(strike K, maturity T) pair. We clean the data by removing contracts with
+low open interest and prices that fall outside the bid-ask bounds.
 
-### Idee matematiche
-- **Formula di Black-Scholes:** C = S·N(d₁) − K·e^(−rT)·N(d₂)
-  dove d₁ = [ln(S/K) + (r + σ²/2)T] / σ√T
-- **Inversione numerica:** IV = argmin_σ |C_BS(σ) − C_market|
-  risolta con il metodo di Brent (root-finding bracketed, convergenza garantita)
-- **Moneyness log-forward:** k = ln(K / F) dove F = S·e^(rT)
-  standardizza lo strike rispetto alla struttura forward
+### Mathematical ideas
+- **Black-Scholes formula:** C = S·N(d1) − K·e^(−rT)·N(d2)
+  where d1 = [ln(S/K) + (r + sigma^2/2)T] / (sigma·sqrt(T))
+- **Numerical inversion:** IV = argmin_sigma |C_BS(sigma) − C_market|,
+  solved with Brent's method (bracketed root-finding, guaranteed convergence)
+- **Log-forward moneyness:** k = ln(K / F), where F = S·e^(rT) —
+  standardizes the strike relative to the forward structure
 
-### Idee economiche
-- L'IV non è una volatilità storica — è la volatilità che, se inserita in BS, replica
-  il prezzo di mercato. Incorpora le aspettative del mercato *e* un premio al rischio.
-- La costruzione della superficie richiede dati puliti: contratti illiquidi hanno
-  bid-ask enormi che rendono l'IV computata inaffidabile e non tradable.
-- Il passaggio a moneyness log-forward rimuove la dipendenza dal livello spot,
-  rendendo la superficie confrontabile nel tempo.
+### Economic ideas
+- IV is not a historical volatility — it is the volatility that, when
+  plugged into BS, reproduces the market price. It embeds both market
+  expectations *and* a risk premium.
+- Building the surface requires clean data: illiquid contracts have wide
+  bid-ask spreads that make the computed IV unreliable and non-tradable.
+- The log-forward moneyness transform removes the dependence on the spot
+  level, making the surface comparable over time.
 
-### Librerie
+### Libraries
 `yfinance`, `py_vollib`, `scipy.optimize.brentq`
 
-### Riferimenti bibliografici
+### References
 - Black, F., & Scholes, M. (1973). *The Pricing of Options and Corporate Liabilities.*
-  Journal of Political Economy, 81(3), 637–654.
+  Journal of Political Economy, 81(3), 637-654.
 - Breeden, D. T., & Litzenberger, R. H. (1978). *Prices of State-Contingent Claims
-  Implicit in Option Prices.* Journal of Business, 51(4), 621–651.
+  Implicit in Option Prices.* Journal of Business, 51(4), 621-651.
 
 ---
 
-## Punto 2 — Costruzione della Superficie e Vincoli No-Arbitrage
+## Step 2 — Surface Construction and No-Arbitrage Constraints
 
-### Cosa facciamo
-Organizziamo i punti (k, T) → IV in una griglia sparsa e applichiamo controlli
-di arbitraggio statico. I punti che violano i vincoli vengono rimossi o flaggati
-prima di fittare il GP.
+### What we do
+We organize the (k, T) -> IV points into a sparse grid and apply static
+arbitrage checks. Points that violate the constraints are removed or
+flagged before fitting the GP.
 
-### Idee matematiche
-- **Butterfly arbitrage:** ∂²C/∂K² ≥ 0 per ogni K fissato — la curva dei prezzi
-  rispetto allo strike deve essere convessa. Equivale a densità di probabilità
-  risk-neutral non-negativa.
-- **Calendar spread arbitrage:** ∂C/∂T ≥ 0 per ogni K fissato — un'opzione con
-  scadenza più lontana non può valere meno di una con scadenza vicina (stesso strike).
-- **Condizione di Breeden-Litzenberger:** q(S_T) = e^(rT) · ∂²C/∂K²
-  permette di estrarre la distribuzione risk-neutral dei prezzi futuri dalla superficie.
+### Mathematical ideas
+- **Butterfly arbitrage:** d^2C/dK^2 >= 0 for fixed K — the price curve as
+  a function of strike must be convex. Equivalent to a non-negative
+  risk-neutral density.
+- **Calendar spread arbitrage:** dC/dT >= 0 for fixed K — an option with a
+  later maturity cannot be worth less than one with an earlier maturity
+  (same strike).
+- **Breeden-Litzenberger condition:** q(S_T) = e^(rT) · d^2C/dK^2 — allows
+  extracting the risk-neutral distribution of future prices from the
+  surface.
 
-### Idee economiche
-- Le violazioni di questi vincoli rappresentano opportunità di arbitraggio statico
-  senza rischio. In mercati efficienti non dovrebbero esistere — se le troviamo,
-  sono quasi sempre artefatti di dati illiquidi o errori di quotazione.
-- Rimuovere questi punti non impoverisce il dataset: sono prezzi non informativi
-  che distorcerebbero il fit del GP.
+### Economic ideas
+- Violations of these constraints represent risk-free static arbitrage
+  opportunities. In efficient markets they should not exist — when found,
+  they are almost always artifacts of illiquid data or quoting errors.
+- Removing these points does not impoverish the dataset: they are
+  uninformative prices that would distort the GP fit.
 
-### Riferimenti bibliografici
-- Dupire, B. (1994). *Pricing with a Smile.* Risk, 7(1), 18–20.
+### References
+- Dupire, B. (1994). *Pricing with a Smile.* Risk, 7(1), 18-20.
 - Fengler, M. R. (2009). *Arbitrage-Free Smoothing of the Implied Volatility Surface.*
-  Quantitative Finance, 9(4), 417–428.
+  Quantitative Finance, 9(4), 417-428.
 
 ---
 
-## Punto 3 — Gaussian Process sulla Superficie di Volatilità
+## Step 3 — Gaussian Process on the Volatility Surface
 
-### Cosa facciamo
-Fittiamo un Gaussian Process Regressor sulla griglia sparsa di punti puliti.
-Input: X = [k, log(T)]. Output: distribuzione su IV, ovvero una media predetta
-μ_GP(k,T) e una deviazione standard σ_GP(k,T) per ogni punto della superficie.
+### What we do
+We fit a Gaussian Process Regressor on the cleaned sparse grid of points.
+Input: X = [k, log(T)]. Output: a distribution over IV — a predicted mean
+mu_GP(k,T) and standard deviation sigma_GP(k,T) at every point of the
+surface.
 
-### Idee matematiche
-- **GP come prior su funzioni:** f ~ GP(m(x), κ(x,x'))
-  dove m è la funzione media (tipicamente zero) e κ è il kernel di covarianza.
-- **Kernel composito:** κ = RBF(l₁) + Matérn_5/2(l₂) + WhiteNoise(σ_n)
-  - RBF cattura la smoothness globale della superficie
-  - Matérn cattura irregolarità locali (meno smooth dell'RBF)
-  - WhiteNoise modella il rumore di bid-ask
-- **Posterior gaussiano:** dopo aver osservato i dati, il posterior è analitico:
-  μ_GP(x*) = κ(x*, X) · [κ(X,X) + σ_n²I]⁻¹ · y
-  σ²_GP(x*) = κ(x*,x*) − κ(x*,X) · [κ(X,X) + σ_n²I]⁻¹ · κ(X,x*)
-- **Ottimizzazione degli iperparametri** (lunghezze di scala l₁, l₂ e noise σ_n):
-  massimizzazione della log-marginal likelihood:
-  log p(y|X,θ) = −½ yᵀ K⁻¹ y − ½ log|K| − n/2 log(2π)
+### Mathematical ideas
+- **GP as a prior over functions:** f ~ GP(m(x), kappa(x,x'))
+  where m is the mean function (typically zero) and kappa is the
+  covariance kernel.
+- **Composite kernel:** kappa = RBF(l1) + Matern_5/2(l2) + WhiteNoise(sigma_n)
+  - RBF captures the global smoothness of the surface
+  - Matern captures local irregularities (less smooth than RBF)
+  - WhiteNoise models bid-ask noise
+- **Gaussian posterior:** once data is observed, the posterior is analytic:
+  mu_GP(x*) = kappa(x*, X) · [kappa(X,X) + sigma_n^2 I]^-1 · y
+  sigma^2_GP(x*) = kappa(x*,x*) − kappa(x*,X) · [kappa(X,X) + sigma_n^2 I]^-1 · kappa(X,x*)
+- **Hyperparameter optimization** (length scales l1, l2, and noise sigma_n):
+  maximize the log marginal likelihood:
+  log p(y|X,theta) = -1/2 y^T K^-1 y - 1/2 log|K| - n/2 log(2*pi)
 
-### Idee economiche
-- Il GP è un interpolatore ottimale in media quadratica: usa tutti i prezzi
-  osservati come vincoli reciproci per stimare la IV in ogni punto della superficie.
-- σ_GP(k,T) è una misura diretta di illiquidità locale: alta dove ci sono pochi
-  contratti scambiati, bassa dove il mercato è denso e informativo.
-- Una deviazione significativa tra IV_market e μ_GP segnala che quell'opzione è
-  prezzata in modo inconsistente con i suoi vicini — potenziale mispricing.
+### Economic ideas
+- The GP is an optimal interpolator in the mean-square sense: it uses all
+  observed prices as mutual constraints to estimate IV at every point of
+  the surface.
+- sigma_GP(k,T) is a direct measure of local illiquidity: high where few
+  contracts trade, low where the market is dense and informative.
+- A significant deviation between IV_market and mu_GP signals that an
+  option is priced inconsistently with its neighbors — a candidate
+  mispricing.
 
-### Librerie
-`sklearn.gaussian_process`, `GPy`, `botorch` (pytorch-based)
+### Libraries
+`sklearn.gaussian_process`, `GPy`, `botorch` (PyTorch-based)
 
-### Riferimenti bibliografici
-- Rasmussen, C. E., & Williams, C. K. I. (2006). *Gaussian Processes for Machine Learning.*
-  MIT Press.
+### References
+- Rasmussen, C. E., & Williams, C. K. I. (2006). *Gaussian Processes for Machine
+  Learning.* MIT Press.
 - Cont, R., & da Fonseca, J. (2002). *Dynamics of Implied Volatility Surfaces.*
-  Quantitative Finance, 2(1), 45–60.
-- Cousin, A., Maatouk, H., & Rullière, D. (2016). *Kriging of Financial Term-Structures.*
-  European Journal of Operational Research, 255(2), 631–648.
+  Quantitative Finance, 2(1), 45-60.
+- Cousin, A., Maatouk, H., & Rulliere, D. (2016). *Kriging of Financial Term-Structures.*
+  European Journal of Operational Research, 255(2), 631-648.
 
 ---
 
-## Punto 4 — Modello SVI come Baseline Parametrica (calibrato con BO)
+## Step 4 — SVI Model as Parametric Baseline (Calibrated with BO)
 
-### Cosa facciamo
-Calibriamo il modello SVI (Stochastic Volatility Inspired) sulla superficie giornaliera
-usando Bayesian Optimization invece di grid search. SVI produce una superficie parametrica
-arbitrage-free che serve come termine di confronto per il GP.
+### What we do
+We calibrate the SVI (Stochastic Volatility Inspired) model on the daily
+surface using Bayesian Optimization instead of grid search. SVI produces a
+parametric, arbitrage-free surface that serves as the comparison term for
+the GP.
 
-### Idee matematiche
-- **Forma funzionale SVI:**
-  σ²_SVI(k) = a + b · [ρ(k − m) + √((k − m)² + ξ²)]
-  dove θ = (a, b, ρ, m, ξ) sono i 5 parametri da calibrare (per ogni scadenza T).
-  - a: livello di varianza totale
-  - b: pendenza dell'ala (ATM vol)
-  - ρ ∈ (−1,1): correlazione skew (asimmetria)
-  - m: centro della curva (ATM offset)
-  - ξ: smoothness dell'ala (curvatura)
+### Mathematical ideas
+- **SVI functional form:**
+  sigma^2_SVI(k) = a + b · [rho·(k - m) + sqrt((k - m)^2 + xi^2)]
+  where theta = (a, b, rho, m, xi) are the 5 parameters to calibrate
+  (per maturity T).
+  - a: total variance level
+  - b: wing slope (ATM vol)
+  - rho in (-1,1): skew correlation (asymmetry)
+  - m: curve center (ATM offset)
+  - xi: wing smoothness (curvature)
 - **Bayesian Optimization:**
-  Costruisce un GP surrogate model sulla funzione di loss L(θ) = Σ(IV_market − IV_SVI)²
-  e usa una acquisition function per scegliere dove valutare L(θ) successivamente:
-  - Expected Improvement: EI(θ) = E[max(L(θ*) − L(θ), 0)]
-  - Upper Confidence Bound: UCB(θ) = μ(θ) + β·σ(θ)
-  BO trova il minimo in ~50 valutazioni vs ~10⁵ della grid search.
-- **Condizioni no-arbitrage per SVI:**
-  b ≥ 0, |ρ| < 1, ξ > 0, a + b·ξ·√(1−ρ²) ≥ 0
+  Builds a GP surrogate model on the loss function L(theta) = sum((IV_market - IV_SVI)^2)
+  and uses an acquisition function to choose where to evaluate L(theta) next:
+  - Expected Improvement: EI(theta) = E[max(L(theta*) - L(theta), 0)]
+  - Upper Confidence Bound: UCB(theta) = mu(theta) + beta·sigma(theta)
+  BO finds the minimum in ~50 evaluations vs ~10^5 for grid search.
+- **No-arbitrage conditions for SVI:**
+  b >= 0, |rho| < 1, xi > 0, a + b·xi·sqrt(1-rho^2) >= 0
 
-### Idee economiche
-- SVI rappresenta la "prior parametrica" del market maker: è il modello che tipicamente
-  usano per interpolare la superficie sulle zone illiquide.
-- Usando BO invece di grid search non è solo efficienza computazionale: riduce il
-  rischio di overfittare i parametri agli stessi dati che useremo per il segnale.
-- Il confronto GP vs SVI è al cuore del segnale: dove il modello flessibile (GP)
-  e quello rigido (SVI) concordano su un mispricing, il segnale è molto più credibile.
+### Economic ideas
+- SVI represents the market maker's "parametric prior": it is typically
+  the model used to interpolate the surface in illiquid regions.
+- Using BO instead of grid search is not just computational efficiency: it
+  reduces the risk of overfitting the parameters to the same data we will
+  use for the signal.
+- The GP vs SVI comparison is at the heart of the signal: where the
+  flexible model (GP) and the rigid one (SVI) agree on a mispricing, the
+  signal is far more credible.
 
-### Librerie
+### Libraries
 `scikit-optimize (skopt)`, `optuna`, `botorch`
 
-### Riferimenti bibliografici
+### References
 - Gatheral, J., & Jacquier, A. (2014). *Arbitrage-Free SVI Volatility Surfaces.*
-  Quantitative Finance, 14(1), 59–71.
+  Quantitative Finance, 14(1), 59-71.
 - Snoek, J., Larochelle, H., & Adams, R. P. (2012). *Practical Bayesian Optimization
-  of Machine Learning Algorithms.* NeurIPS, 25, 2951–2959.
+  of Machine Learning Algorithms.* NeurIPS, 25, 2951-2959.
 - Frazier, P. I. (2018). *A Tutorial on Bayesian Optimization.* arXiv:1807.02811.
 
 ---
 
-## Punto 5 — Calendar Filter e Gestione degli Eventi
+## Step 5 — Calendar Filter and Event Handling
 
-### Cosa facciamo
-Prima di calcolare qualsiasi segnale, flagghiamo le opzioni la cui scadenza cade
-entro 3 giorni da un evento noto (earnings, FOMC, CPI release). Il moltiplicatore
-di calendario cal(T) = 0 per queste opzioni, indipendentemente dal segnale GP.
+### What we do
+Before computing any signal, we flag options whose expiry falls within 3
+days of a known event (earnings, FOMC, CPI release). The calendar
+multiplier cal(T) = 0 for these options, regardless of the GP signal.
 
-### Idee matematiche
-- **Definizione formale:** cal(T) = 𝟙[min_{e ∈ Events} |T − e| > δ]
-  dove δ = 3 giorni e Events include FOMC, earnings date, macro releases.
+### Mathematical ideas
+- **Formal definition:** cal(T) = 1[ min_{e in Events} |T - e| > delta ]
+  where delta = 3 days and Events includes FOMC dates, earnings dates,
+  macro releases.
 - **Event vol decomposition:**
-  σ²_total = σ²_daily · (T − t) + σ²_event · 𝟙[event ∈ [t, T]]
-  La presenza di un evento spiega sistematicamente parte della IV totale.
+  sigma^2_total = sigma^2_daily · (T - t) + sigma^2_event · 1[event in [t, T]]
+  The presence of an event systematically explains part of total IV.
 
-### Idee economiche
-- Un'opzione che ingloba un earnings non è misprezzata se la sua IV è alta:
-  sta correttamente prezzando l'event risk. Non è inconsistente con i vicini
-  — è in una categoria diversa.
-- Questo filtro è l'unico che rimane binario: non c'è gradazione possibile.
-  Un'opzione che copre un evento è fundamentalmente diversa dalle altre.
-- La logica è quella di separare vol strutturale (quello che vogliamo tradare)
-  da vol di evento (correttamente prezzata, non tradable).
+### Economic ideas
+- An option spanning an earnings date is not mispriced if its IV is high —
+  it is correctly pricing event risk. It is not inconsistent with its
+  neighbors; it belongs to a different category.
+- This is the only filter that remains binary: no gradation is possible.
+  An option covering an event is fundamentally different from the others.
+- The logic separates structural vol (what we want to trade) from event
+  vol (correctly priced, not tradable).
 
-### Riferimenti bibliografici
+### References
 - Garleanu, N., Pedersen, L. H., & Poteshman, A. M. (2009). *Demand-Based Option Pricing.*
-  Review of Financial Studies, 22(10), 4259–4299.
+  Review of Financial Studies, 22(10), 4259-4299.
 
 ---
 
-## Punto 6 — Composite Scoring Function
+## Step 6 — Composite Scoring Function
 
-### Cosa facciamo
-Convertiamo i quattro filtri in moltiplicatori continui e li combiniamo in uno score
-unico per ogni opzione. Il trade avviene solo se lo score supera una soglia τ ottimizzata
-con BO (vedi Punto 7).
+### What we do
+We convert the four filters into continuous multipliers and combine them
+into a single score for each option. A trade fires only if the score
+exceeds a threshold tau, optimized via BO (Step 7).
 
-### Idee matematiche
-- **Z-score della deviazione:**
-  z(k,T) = [IV_market(k,T) − μ_GP(k,T)] / σ_GP(k,T)
-  Misura la deviazione in unità di incertezza del modello.
+### Mathematical ideas
+- **Z-score of the deviation:**
+  z(k,T) = [IV_market(k,T) - mu_GP(k,T)] / sigma_GP(k,T)
+  Measures the deviation in units of model uncertainty.
 
-- **Confidence (dall'uncertainty GP):**
-  conf(k,T) = 1 / (1 + σ_GP(k,T))    ∈ (0, 1]
+- **Confidence (from GP uncertainty):**
+  conf(k,T) = 1 / (1 + sigma_GP(k,T))   in (0, 1]
 
-- **Consistency (accordo GP e SVI):**
-  cons(k,T) = 𝟙[sign(IV_market − μ_GP) = sign(IV_market − μ_SVI)]
+- **Consistency (GP and SVI agreement):**
+  cons(k,T) = 1[ sign(IV_market - mu_GP) = sign(IV_market - mu_SVI) ]
 
-- **Net deviation (aggiustata per bid-ask):**
-  Δ_net(k,T) = max(|IV_market − μ_GP| − spread/2, 0)
+- **Net deviation (bid-ask adjusted):**
+  Delta_net(k,T) = max( |IV_market - mu_GP| - spread/2, 0 )
 
 - **Composite score:**
-  score(k,T) = z · cal · conf · cons · Δ_net
+  score(k,T) = z · cal · conf · cons · Delta_net
 
-  Proprietà:
-  - score = 0 se qualunque moltiplicatore è zero
-  - score è continuo → ranking preciso delle opportunità
-  - size della posizione ∝ score (position sizing naturale)
+  Properties:
+  - score = 0 if any multiplier is zero
+  - score is continuous -> precise ranking of opportunities
+  - position size proportional to score (natural position sizing)
 
-### Idee economiche
-- Ogni moltiplicatore ha una precisa interpretazione economica:
-  - z: quanto è grande il mispricing in termini statistici
-  - cal: il mispricing non è event vol (non tradable)
-  - conf: il mercato in quella zona è abbastanza liquido da rendere il GP affidabile
-  - cons: due modelli indipendenti concordano → il mercato ha torto, non i modelli
-  - Δ_net: il mispricing supera i costi di transazione → il trade è profittevole
-- Il composite score non è uno strumento statistico — è una formalizzazione
-  dell'analisi economica che farebbe un trader esperto guardando la superficie.
+### Economic ideas
+Each multiplier has a precise economic interpretation. z measures how large
+the mispricing is in statistical terms. cal confirms the mispricing is not
+event vol (and therefore tradable). conf reflects whether the local market
+is liquid enough for the GP estimate to be trusted. cons checks whether two
+independent models agree that the market — not the models — is wrong.
+Delta_net confirms the mispricing exceeds transaction costs, i.e. the trade
+is actually profitable. The composite score is not merely a statistical
+device: it formalizes the economic reasoning an experienced trader would
+apply when looking at the surface.
 
 ---
 
-## Punto 7 — Walk-Forward Backtest con BO per la Soglia
+## Step 7 — Walk-Forward Backtest with BO for the Threshold
 
-### Cosa facciamo
-Usiamo BO per trovare la soglia ottimale τ su finestre rolling di training,
-validando sempre su dati mai visti. Ogni finestra produce un τ*, usato nel
-periodo successivo out-of-sample.
+### What we do
+We use BO to find the optimal threshold tau on rolling training windows,
+always validating on unseen data. Each window produces a tau*, applied to
+the following out-of-sample period.
 
-### Idee matematiche
-- **Schema walk-forward:**
-  Per ogni t = t₀, t₀+Δ, t₀+2Δ, ...
-  - Train: dati da [t − W, t]  →  BO trova τ*(t)
-  - Test:  dati da [t, t + Δ]  →  applica τ*(t), misura Sharpe OOS
-  Tipicamente W = 252 giorni, Δ = 63 giorni (trimestrale).
+### Mathematical ideas
+- **Walk-forward scheme:**
+  For each t = t0, t0+Delta, t0+2*Delta, ...
+  - Train: data from [t - W, t]  ->  BO finds tau*(t)
+  - Test:  data from [t, t + Delta]  ->  apply tau*(t), measure OOS Sharpe
+  Typically W = 252 days, Delta = 63 days (quarterly).
 
-- **BO per ottimizzazione di τ:**
-  max_τ  Sharpe_OOS(τ)  su  τ ∈ [τ_min, τ_max]
-  Usando GP surrogate + UCB acquisition function.
-  ~30–50 valutazioni sufficienti (vs 500+ grid search).
+- **BO for optimizing tau:**
+  max_tau  Sharpe_OOS(tau)  over  tau in [tau_min, tau_max]
+  using a GP surrogate + UCB acquisition function.
+  ~30-50 evaluations are sufficient (vs 500+ for grid search).
 
 - **Deflated Sharpe Ratio (DSR):**
-  Corregge il Sharpe per il numero di configurazioni testate:
-  DSR = SR · [1 − γ(skewness, kurtosis)] / √(V_trials)
-  Previene il reporting di Sharpe inflati da selezione multipla.
+  corrects the Sharpe ratio for the number of configurations tested:
+  DSR = SR · [1 - gamma(skewness, kurtosis)] / sqrt(V_trials)
+  Prevents reporting inflated Sharpe ratios due to multiple testing.
 
-- **Metriche di performance:**
-  - Sharpe annualizzato: SR = E[R_daily] / σ[R_daily] · √252
-  - Max drawdown: MDD = max_{t≤s} [V(t) − V(s)] / V(t)
+- **Performance metrics:**
+  - Annualized Sharpe: SR = E[R_daily] / sigma[R_daily] · sqrt(252)
+  - Max drawdown: MDD = max_{t<=s} [V(t) - V(s)] / V(t)
   - Calmar ratio: SR / MDD
-  - Hit rate: % trade con P&L > 0
-  - Signal half-life: stima da autocorrelazione AR(1) del segnale
+  - Hit rate: % of trades with P&L > 0
+  - Signal half-life: estimated from the AR(1) autocorrelation of the signal
 
-### Idee economiche
-- Il walk-forward replica la sola situazione realistica: un gestore che nel passato
-  avrebbe potuto usare solo i dati disponibili fino a quel momento.
-- Senza walk-forward, qualsiasi backtest è inconsistente con la realtà perché
-  usa informazioni future (look-ahead bias).
-- Il DSR protegge dal data snooping: se si testano 50 configurazioni, la probabilità
-  di trovare una buona per puro caso è alta. Il DSR corregge questa inflazione.
+### Economic ideas
+- Walk-forward replicates the only realistic situation: a manager who, in
+  the past, could only have used data available up to that point in time.
+- Without walk-forward, any backtest is inconsistent with reality because
+  it uses future information (look-ahead bias).
+- The DSR protects against data snooping: if 50 configurations are tested,
+  the probability of finding a good one purely by chance is high. The DSR
+  corrects for this inflation.
 
-### Riferimenti bibliografici
+### References
 - Bailey, D. H., & Lopez de Prado, M. (2014). *The Deflated Sharpe Ratio: Correcting
   for Selection Bias, Backtest Overfitting, and Non-Normality.*
-  Journal of Portfolio Management, 40(5), 94–107.
+  Journal of Portfolio Management, 40(5), 94-107.
 - White, H. (2000). *A Reality Check for Data Snooping.*
-  Econometrica, 68(5), 1097–1126.
+  Econometrica, 68(5), 1097-1126.
 - Lopez de Prado, M. (2018). *Advances in Financial Machine Learning.* Wiley.
 
 ---
 
-## Punto 8 — Delta-Hedging e Isolamento del Vol Alpha
+## Step 8 — Delta-Hedging and Isolating the Vol Alpha
 
-### Cosa facciamo
-Ogni posizione viene delta-hedgiata quotidianamente: compriamo o vendiamo la
-quantità di azioni necessaria a rendere il portafoglio delta-neutro. Questo
-elimina l'esposizione direzionale e isola il P&L alla sola componente di volatilità.
+### What we do
+Every position is delta-hedged daily: we buy or sell the amount of
+underlying needed to make the portfolio delta-neutral. This removes
+directional exposure and isolates the P&L to the volatility component
+alone.
 
-### Idee matematiche
-- **Delta BS:**
-  Δ_call = N(d₁),   Δ_put = N(d₁) − 1
-  dove d₁ = [ln(S/K) + (r + σ²/2)T] / σ√T
+### Mathematical ideas
+- **BS Delta:**
+  Delta_call = N(d1),   Delta_put = N(d1) - 1
+  where d1 = [ln(S/K) + (r + sigma^2/2)T] / (sigma·sqrt(T))
 
 - **P&L decomposition (Carr-Madan):**
-  dΠ = (Γ/2)(dS)² · (σ²_realized − σ²_implied) · dt + residuo
-  Il P&L di una posizione delta-hedgiata è proporzionale alla differenza tra
-  volatilità realizzata e volatilità implicita pagata all'acquisto.
+  dPi = (Gamma/2)(dS)^2 · (sigma^2_realized - sigma^2_implied) · dt + residual
+  The P&L of a delta-hedged position is proportional to the difference
+  between realized volatility and the implied volatility paid at entry.
 
-- **Gamma P&L giornaliero:**
-  PnL_t ≈ ½ · Γ · S² · (r²_t − σ²_IV) · Δt
-  dove r_t è il return giornaliero del sottostante.
+- **Daily Gamma P&L:**
+  PnL_t ~= 0.5 · Gamma · S^2 · (r_t^2 - sigma^2_IV) · dt
+  where r_t is the underlying's daily return.
 
 - **Vega exposure:**
-  Vega = ∂V/∂σ = S · N'(d₁) · √T
-  Residua dopo il delta-hedge: è l'esposizione ai movimenti di vol implicita.
+  Vega = dV/dsigma = S · N'(d1) · sqrt(T)
+  Remaining after the delta hedge: exposure to moves in implied vol.
 
-### Idee economiche
-- Senza delta-hedge, il P&L della strategia include una grande componente
-  direzionale (beta all'equity) che non è l'alpha che cerchiamo.
-- Il delta-hedge trasforma la nostra posizione in un "bet puro" sulla vol:
-  guadagnamo se σ_realized > σ_implied (abbiamo comprato vol economica)
-  o se σ_implied scende verso il valore GP (il mispricing si corregge).
-- Economicamente, il P&L post-hedge misura esclusivamente se avevamo ragione
-  sulla val del GP — è il test diretto della nostra tesi di alpha.
+### Economic ideas
+- Without delta-hedging, the strategy's P&L includes a large directional
+  (equity beta) component that is not the alpha we are looking for.
+- Delta-hedging turns the position into a "pure bet" on volatility: we
+  profit if sigma_realized > sigma_implied (we bought cheap vol), or if
+  sigma_implied moves toward the GP estimate (the mispricing corrects).
+- Economically, the post-hedge P&L measures exclusively whether we were
+  right about the GP estimate — it is the direct test of our alpha thesis.
 
-### Riferimenti bibliografici
+### References
 - Bakshi, G., & Kapadia, N. (2003). *Delta-Hedged Gains and the Negative Market
-  Volatility Risk Premium.* Review of Financial Studies, 16(2), 527–566.
+  Volatility Risk Premium.* Review of Financial Studies, 16(2), 527-566.
 - Carr, P., & Wu, L. (2009). *Variance Risk Premiums.*
-  Review of Financial Studies, 22(3), 1311–1341.
+  Review of Financial Studies, 22(3), 1311-1341.
 
 ---
 
-## Punto 9 — Analisi del Segnale e Diagnostica
+## Step 9 — Signal Analysis and Diagnostics
 
-### Cosa facciamo
-Verifichiamo che il segnale abbia caratteristiche compatibili con alpha reale
-e non con overfitting o noise: decadimento temporale consistente con arbitraggio,
-consistenza cross-sezionale, stabilità nel tempo.
+### What we do
+We verify that the signal has characteristics consistent with real alpha
+rather than overfitting or noise: decay over time consistent with
+arbitrage, cross-sectional consistency, and stability over time.
 
-### Idee matematiche
-- **Signal decay (half-life):** stimiamo la velocità di correzione del mispricing
-  con un modello AR(1) sulla deviazione:
-  Δ_t = α · Δ_{t−1} + ε    →    half-life = −log(2) / log(α)
-  Un half-life di 2–5 giorni è compatibile con arbitraggio di mercato maker.
+### Mathematical ideas
+- **Signal decay (half-life):** estimate the speed of mispricing
+  correction with an AR(1) model on the deviation:
+  Delta_t = alpha · Delta_{t-1} + epsilon    ->    half_life = -log(2) / log(alpha)
+  A half-life of 2-5 days is consistent with market-maker arbitrage.
 
-- **Stabilità cross-sezionale:**
-  Correlazione del segnale su sottostanti diversi nella stessa giornata.
-  Un segnale cross-sectionally consistente è molto meno probabile sia noise.
+- **Cross-sectional consistency:**
+  correlation of the signal across different underlyings on the same day.
+  A cross-sectionally consistent signal is far less likely to be pure noise.
 
 - **Information coefficient (IC):**
-  IC_t = corr(score_t, return_vol_t+1)
-  Misura il potere predittivo del segnale. IC > 0.05 è considerato buono
-  in vol trading.
+  IC_t = corr(score_t, return_vol_{t+1})
+  Measures the predictive power of the signal. IC > 0.05 is considered
+  good in vol trading.
 
-### Idee economiche
-- Un half-life troppo corto (< 1 giorno) suggerirebbe che il segnale è
-  microstructure noise non tradable con dati EOD.
-- Un half-life troppo lungo (> 20 giorni) suggerirebbe che non è un mispricing
-  ma una struttura economica persistente che non si corregge facilmente.
-- Il range 2–10 giorni è compatibile con la velocità di ricalibrazione dei
-  market maker e con la persistenza della pressione della domanda istituzionale.
+### Economic ideas
+- A half-life that is too short (< 1 day) would suggest the signal is
+  microstructure noise, not tradable with EOD data.
+- A half-life that is too long (> 20 days) would suggest it is not a
+  mispricing but a persistent economic structure that does not correct
+  easily.
+- A 2-10 day range is consistent with the speed of market-maker
+  recalibration and with the persistence of institutional demand pressure.
 
-### Riferimenti bibliografici
+### References
 - Cont, R., & da Fonseca, J. (2002). *Dynamics of Implied Volatility Surfaces.*
-  Quantitative Finance, 2(1), 45–60.
+  Quantitative Finance, 2(1), 45-60.
 
 ---
 
-## Stack Tecnologico Completo
+## Full Tech Stack
 
-| Componente          | Libreria principale          | Alternativa           |
-|---------------------|------------------------------|-----------------------|
-| Dati options        | `yfinance`                   | `polygon.io` API      |
-| Implied Vol         | `py_vollib`                  | `scipy` + BS custom   |
-| Gaussian Process    | `sklearn.gaussian_process`   | `GPy`, `botorch`      |
-| Bayesian Opt.       | `scikit-optimize`            | `optuna`              |
-| Backtest            | `vectorbt`                   | custom `pandas`       |
-| Visualizzazione     | `plotly` (3D surface)        | `matplotlib`          |
-| Delta hedge         | custom + `py_vollib`         |                       |
+| Component           | Primary library              | Alternative            |
+|---------------------|-------------------------------|-------------------------|
+| Options data        | `yfinance`                    | `polygon.io` API        |
+| Implied volatility  | `py_vollib`                   | `scipy` + custom BS      |
+| Gaussian Process    | `sklearn.gaussian_process`    | `GPy`, `botorch`          |
+| Bayesian opt.       | `scikit-optimize`              | `optuna`                  |
+| Backtest            | `vectorbt`                     | custom `pandas`           |
+| Visualization       | `plotly` (3D surface)          | `matplotlib`              |
+| Delta hedge         | custom + `py_vollib`           |                          |
 
 ---
 
-## Bibliografia Completa
+## Full Bibliography
 
-### Pricing e Volatility Surface
+### Pricing and the Volatility Surface
 - **Black, F., & Scholes, M.** (1973). The Pricing of Options and Corporate Liabilities.
-  *Journal of Political Economy*, 81(3), 637–654.
+  *Journal of Political Economy*, 81(3), 637-654.
 - **Breeden, D. T., & Litzenberger, R. H.** (1978). Prices of State-Contingent Claims
-  Implicit in Option Prices. *Journal of Business*, 51(4), 621–651.
-- **Dupire, B.** (1994). Pricing with a Smile. *Risk*, 7(1), 18–20.
+  Implicit in Option Prices. *Journal of Business*, 51(4), 621-651.
+- **Dupire, B.** (1994). Pricing with a Smile. *Risk*, 7(1), 18-20.
 - **Fengler, M. R.** (2009). Arbitrage-Free Smoothing of the Implied Volatility Surface.
-  *Quantitative Finance*, 9(4), 417–428.
+  *Quantitative Finance*, 9(4), 417-428.
 - **Gatheral, J., & Jacquier, A.** (2014). Arbitrage-Free SVI Volatility Surfaces.
-  *Quantitative Finance*, 14(1), 59–71.
+  *Quantitative Finance*, 14(1), 59-71.
 - **Cont, R., & da Fonseca, J.** (2002). Dynamics of Implied Volatility Surfaces.
-  *Quantitative Finance*, 2(1), 45–60.
+  *Quantitative Finance*, 2(1), 45-60.
 
-### Variance Risk Premium e Domanda
+### Variance Risk Premium and Demand Effects
 - **Carr, P., & Wu, L.** (2009). Variance Risk Premiums.
-  *Review of Financial Studies*, 22(3), 1311–1341.
+  *Review of Financial Studies*, 22(3), 1311-1341.
 - **Bakshi, G., & Kapadia, N.** (2003). Delta-Hedged Gains and the Negative Market
-  Volatility Risk Premium. *Review of Financial Studies*, 16(2), 527–566.
+  Volatility Risk Premium. *Review of Financial Studies*, 16(2), 527-566.
 - **Garleanu, N., Pedersen, L. H., & Poteshman, A. M.** (2009). Demand-Based Option
-  Pricing. *Review of Financial Studies*, 22(10), 4259–4299.
+  Pricing. *Review of Financial Studies*, 22(10), 4259-4299.
 
-### Gaussian Process e Metodi Non-Parametrici
+### Gaussian Processes and Non-Parametric Methods
 - **Rasmussen, C. E., & Williams, C. K. I.** (2006). *Gaussian Processes for Machine
   Learning.* MIT Press.
-- **Cousin, A., Maatouk, H., & Rullière, D.** (2016). Kriging of Financial
-  Term-Structures. *European Journal of Operational Research*, 255(2), 631–648.
+- **Cousin, A., Maatouk, H., & Rulliere, D.** (2016). Kriging of Financial
+  Term-Structures. *European Journal of Operational Research*, 255(2), 631-648.
 
 ### Bayesian Optimization
 - **Snoek, J., Larochelle, H., & Adams, R. P.** (2012). Practical Bayesian Optimization
-  of Machine Learning Algorithms. *NeurIPS*, 25, 2951–2959.
+  of Machine Learning Algorithms. *NeurIPS*, 25, 2951-2959.
 - **Frazier, P. I.** (2018). A Tutorial on Bayesian Optimization. *arXiv:1807.02811*.
 
-### Backtest e Data Snooping
+### Backtesting and Data Snooping
 - **Bailey, D. H., & Lopez de Prado, M.** (2014). The Deflated Sharpe Ratio: Correcting
   for Selection Bias, Backtest Overfitting, and Non-Normality.
-  *Journal of Portfolio Management*, 40(5), 94–107.
+  *Journal of Portfolio Management*, 40(5), 94-107.
 - **White, H.** (2000). A Reality Check for Data Snooping.
-  *Econometrica*, 68(5), 1097–1126.
+  *Econometrica*, 68(5), 1097-1126.
 - **Lopez de Prado, M.** (2018). *Advances in Financial Machine Learning.* Wiley.
 
 ---
 
-*Documento di riferimento interno — GP Vol Surface Alpha Research Project*
+*Internal reference document — GP Vol Surface Alpha Research Project*

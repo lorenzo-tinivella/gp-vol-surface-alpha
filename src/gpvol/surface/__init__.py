@@ -1,10 +1,10 @@
 """
-Modelli di superficie: riferimento non-parametrico (GP) e
-baseline parametrica (SVI).
+Surface models: the non-parametric reference (GP) and the
+parametric baseline (SVI).
 
 gp_model.py
     - GPSurface
-      wrapper su sklearn.GaussianProcessRegressor
+      wraps sklearn.GaussianProcessRegressor
       kernel = RBF + Matern(nu=2.5) + WhiteKernel
       fit(X=[k, log(T)], y=IV)
       predict_grid() -> (mu_grid, sigma_grid)

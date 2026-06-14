@@ -1,20 +1,19 @@
 """
 gpvol — Gaussian Process Volatility Surface Alpha Research
 
-Package per la ricerca di mispricing locali sulla implied volatility
-surface delle opzioni equity, usando un Gaussian Process come modello
-non-parametrico di riferimento contro una baseline SVI calibrata via
-Bayesian Optimization.
+Research package for detecting local mispricings on the equity options
+implied volatility surface, using a Gaussian Process as a non-parametric
+reference model against an SVI baseline calibrated via Bayesian Optimization.
 
-Moduli
-------
-data          : fetch e cleaning delle options chain
-iv            : Black-Scholes pricing, inversione IV, moneyness
-surface       : modelli GP e SVI della superficie
-optimization  : Bayesian Optimization (calibrazione SVI + soglia)
+Modules
+-------
+data          : fetching and cleaning options chain data
+iv            : Black-Scholes pricing, IV inversion, moneyness
+surface       : GP and SVI surface models
+optimization  : Bayesian Optimization (SVI calibration + threshold search)
 signal        : composite scoring function
 backtest      : walk-forward engine, delta-hedge, performance metrics
-viz           : visualizzazione superfici e risultati
+viz           : surface and result visualization
 """
 
 __version__ = "0.1.0"

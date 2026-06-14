@@ -133,7 +133,7 @@ Pending — see [Roadmap](#roadmap).
 
 ## References
 
-Full bibliography: [`docs/methodology.md`](docs/methodology.md#bibliografia-completa)
+Full bibliography: [`docs/methodology.md`](docs/methodology.md#full-bibliography)
 
 ## License
 

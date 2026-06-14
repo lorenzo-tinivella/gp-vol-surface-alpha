@@ -1,9 +1,9 @@
 """
-Acquisizione e pulizia dati.
+Data acquisition and cleaning.
 
 loader.py
     - fetch_option_chain(ticker, date) -> DataFrame
-      wrapper su yfinance con caching locale
+      yfinance wrapper with local caching
 
 cleaning.py
     - filter_liquidity(df, min_oi, max_spread_pct) -> DataFrame
