@@ -52,6 +52,9 @@ describing *what question it answers* -- not a restatement of its docstring.
 |---|---|---|
 | `test_black_scholes.py` | BS pricing, greeks, IV inversion: algebraic identities + internal roundtrip | A bug in the core pricing/inversion formulas |
 | `test_cross_validation.py` | Same functions against `vollib` (Jaeckel's reference algorithm), on a realistic moneyness/maturity/rate/vol grid | Formulas are internally consistent but disagree with standard convention (e.g. wrong forward, wrong discounting) |
+| `test_loader.py` *(planned)* | Raw chain parsing against a mocked/fixture response (no live network in CI) | The data pipeline's I/O boundary doesn't match the schema `build_iv_surface` expects |
+| `test_iv_surface.py` | `build_iv_surface`: schema, `len(out)==len(in)`, NaN on bad data vs raise on schema violations | The (k,T)->IV grid everything downstream is built on is malformed, or silently drops/crashes on real data |
+| `test_cleaning.py` *(planned)* | Liquidity filter + static no-arbitrage filters (butterfly, calendar) | A mispriced/illiquid point reaches the GP, or a tradable point is dropped |
 | `test_gp_model.py` *(planned)* | GP posterior mean/variance recovers a known synthetic surface | GP fit, kernel choice, or coordinate system is wrong |
 | `test_svi_model.py` *(planned)* | BO-calibrated SVI parameters satisfy no-arbitrage conditions (`b>=0, |rho|<1, ...`) | Calibration converges to an arbitrageable parametrization |
 | `test_scoring.py` *(planned)* | Composite score is zero iff any filter multiplier is zero; monotonicity in each input | Scoring logic diverges from `docs/methodology.md`, Step 6 |
