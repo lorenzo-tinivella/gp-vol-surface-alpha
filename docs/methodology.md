@@ -132,8 +132,14 @@ surface.
 ## Step 4 — SVI Model as Parametric Baseline (Calibrated with BO)
 
 ### What we do
-We calibrate the SVI (Stochastic Volatility Inspired) model on the daily
-surface using Bayesian Optimization instead of grid search. SVI produces a
+We calibrate the SVI ... model on the daily surface using scipy's
+Nelder-Mead optimizer with 20 random restarts. See the module
+docstring in svi_model.py for the quantitative comparison against BO:
+scipy achieves RMSE(w) ~ 1e-11 in under 1 second; BO requires 16 seconds
+for 3 orders of magnitude worse accuracy on this problem, because the
+SVI objective is a fast closed-form formula (not an expensive simulation)
+with a multimodal landscape. BO is reserved for Step 7 where each
+objective evaluation requires a full backtest. SVI produces a
 parametric, arbitrage-free surface that serves as the comparison term for
 the GP.
 
@@ -172,10 +178,6 @@ the GP.
 ### References
 - Gatheral, J., & Jacquier, A. (2014). *Arbitrage-Free SVI Volatility Surfaces.*
   Quantitative Finance, 14(1), 59-71.
-- Frazier, P. I. (2018). *A Tutorial on Bayesian Optimization.* arXiv:1807.02811.
-- Garouani, M., & Bouneffa, M. (2024). *Automated Machine Learning Hyperparameters
-  Tuning through Meta-Guided Bayesian Optimization.* Progress in Artificial
-  Intelligence.
 
 ---
 
@@ -297,7 +299,10 @@ the following out-of-sample period.
   Journal of Portfolio Management, 40(5), 94-107.
 - White, H. (2000). *A Reality Check for Data Snooping.*
   Econometrica, 68(5), 1097-1126.
-
+- Frazier, P. I. (2018). *A Tutorial on Bayesian Optimization.* arXiv:1807.02811.
+- Garouani, M., & Bouneffa, M. (2024). *Automated Machine Learning Hyperparameters
+  Tuning through Meta-Guided Bayesian Optimization.* Progress in Artificial
+  Intelligence.
 ---
 
 ## Step 8 — Delta-Hedging and Isolating the Vol Alpha
